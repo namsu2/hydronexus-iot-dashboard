@@ -1,85 +1,139 @@
 # HydroNexus Automated IoT NFT Hydroponic System
 
-HydroNexus is a beginner-friendly starter repository for an automated Nutrient Film Technique (NFT) lettuce grow system. It combines an ESP32 controller, environmental and nutrient sensors, a four-channel relay module, a PHP/MySQL telemetry API, a browser dashboard, and a Python growth-stage classifier.
+HydroNexus is a modular, edge-autonomous Nutrient Film Technique (NFT) hydroponic system for lettuce. The ESP32 reads environmental, nutrient, and water-level sensors; controls pumps, a fan, and grow lights; updates a local OLED; and optionally publishes telemetry to a PHP/MySQL dashboard.
 
-> **Safety first:** Treat this repository as an educational starting point. Use a low-voltage DC supply where possible, keep mains wiring enclosed, add flyback/protection hardware for inductive loads, and have a qualified adult review any mains-powered pump, fan, or grow-light wiring.
+> **Safety first:** This is an educational and lab starter repository. Keep mains wiring enclosed, use appropriately rated fuses and relays, separate low-voltage logic from pump/light wiring, and have a qualified adult review any installation that switches mains voltage.
 
-## Repository layout
+## Repository structure
 
 ```text
-firmware/main.ino       ESP32 sensor, OLED, relay, Wi-Fi, and HTTP code
-dashboard/index.html    Standalone live dashboard
-dashboard/style.css     Dashboard styling
-dashboard/api.php       JSON API for readings and relay state
-database/schema.sql     MySQL/MariaDB tables and starter relay rows
-ml/predict.py           Lettuce growth-stage inference script
-README.md               This setup and calibration guide
+firmware/
+  config.h             Central pin map, thresholds, calibration, timing, Wi-Fi/NTP
+  sensors.h/.cpp       pH, TDS/EC, BME680, and ultrasonic sensor subsystem
+  actuators.h/.cpp     Edge safety, relays, fan, dosing, pump, and light schedule
+  oled_display.h/.cpp  SSD1306 local status UI
+  network.h/.cpp       Wi-Fi reconnect, NTP, and JSON telemetry
+  main.ino             Small non-blocking application entry point
+hardware/
+  pinout_mapping.md    Wiring, voltage domains, divider, grounding, and power
+  calibration_guide.md pH, TDS/EC, and water-level calibration procedures
+  bill_of_materials.md Component list with supply and sizing notes
+dashboard/
+  index.html           Standalone browser dashboard with live gauges and toggles
+  style.css            Dashboard visual styling
+  api.php              JSON ingestion and latest-reading API
+database/schema.sql     MySQL/MariaDB schema
+ml/predict.py           PyTorch/OpenCV lettuce growth-stage classifier
 ```
+
+## System block diagram
+
+```mermaid
+flowchart LR
+  subgraph SENSORS[Sensor layer]
+    PH[pH probe\nGPIO 34]
+    TDS[TDS / EC probe\nGPIO 35]
+    BME[BME680\nI2C]
+    LEVEL[HC-SR04\nTRIG 5 / ECHO 18]
+  end
+
+  ESP[ESP32 DevKit\nEdge Autonomy]
+  OLED[SSD1306 OLED\nI2C local status]
+
+  subgraph ACTUATORS[Actuator layer]
+    R1[Relay 1\npH dosing]
+    R2[Relay 2\nwater pump]
+    R3[Relay 3\nexhaust fan]
+    R4[Relay 4\ngrow lights]
+  end
+
+  WIFI[Wi-Fi + NTP]
+  API[PHP API]
+  DB[(MySQL\nsensor history)]
+  WEB[Browser dashboard]
+
+  PH --> ESP
+  TDS --> ESP
+  BME --> ESP
+  LEVEL --> ESP
+  ESP --> OLED
+  ESP --> R1
+  ESP --> R2
+  ESP --> R3
+  ESP --> R4
+  ESP -. telemetry .-> WIFI --> API --> DB
+  WEB <-- latest readings / manual state --> API
+```
+
+## Edge Autonomy architecture
+
+The ESP32 makes all safety-critical decisions locally. Sensor sampling, dry-run protection, fan hysteresis, grow-light scheduling, and timed dosing continue even if Wi-Fi, the PHP server, or the database is unavailable. The network module is only a telemetry and clock service; it is never required for the water pump cutoff or temperature response.
+
+The local safety rules are:
+
+- **Dry-run protection:** if the ultrasonic level is below `MINIMUM_SAFE_WATER_LEVEL_PERCENT`, or the echo becomes invalid, the water pump is forced off.
+- **Temperature control:** the exhaust fan turns on above 35°C and remains on until temperature falls below 33°C.
+- **pH band:** the starter pH dosing routine pulses the pH-up pump below 5.5, then waits through a mixing lockout before dosing again.
+- **Lighting:** grow lights follow the NTP-based schedule in `config.h`, with a local daytime fallback if NTP is unavailable.
+- **Cloud failure:** readings continue locally and are posted only when Wi-Fi is connected.
 
 ## Hardware wiring
 
-| Module | ESP32 connection | Notes |
-|---|---:|---|
-| Analog pH sensor | GPIO 34 | ADC input only; use a conditioned 0–3.3 V output |
-| Analog TDS sensor | GPIO 35 | ADC input only; keep the probe powered as recommended by its manufacturer |
-| BME680 | I²C GPIO 21 SDA / GPIO 22 SCL | Common addresses are `0x76` and `0x77`; the sketch tries both |
-| 0.96-inch OLED | I²C GPIO 21 SDA / GPIO 22 SCL | Typical SSD1306 address is `0x3C` |
-| HC-SR04 TRIG | GPIO 5 | Use a voltage divider on ECHO for a 5 V HC-SR04 module |
-| HC-SR04 ECHO | GPIO 18 | Protect the ESP32 input from 5 V |
-| Relay 1 / pH dosing | GPIO 16 | pH-up dosing pump |
-| Relay 2 / water pump | GPIO 17 | Reservoir circulation/refill pump |
-| Relay 3 / fan | GPIO 19 | Climate fan |
-| Relay 4 / grow lights | GPIO 23 | Grow-light power relay |
-| All modules | Common GND | Use a suitable external supply for pumps and relays |
+| Module | ESP32 connection | Supply / signal | Notes |
+|---|---:|---|---|
+| Analog pH sensor | GPIO 34 | 3.3 V-safe analog output | ADC input only; calibrate with pH 4.01 and 7.00 buffers. |
+| Analog TDS sensor | GPIO 35 | 3.3 V-safe analog output | ADC input only; calibrate with a known reference solution. |
+| BME680 | I²C GPIO 21 SDA / GPIO 22 SCL | 3.3 V | The firmware tries addresses `0x76` and `0x77`. |
+| OLED SSD1306 | I²C GPIO 21 SDA / GPIO 22 SCL | 3.3 V | Typical address `0x3C`. |
+| HC-SR04 TRIG | GPIO 5 | 5 V module input | 3.3 V ESP32 output is commonly accepted. |
+| HC-SR04 ECHO | GPIO 18 | 5 V module output | **Use a resistor divider or level shifter.** |
+| Relay 1 | GPIO 16 | 5 V relay logic | pH dosing pump. |
+| Relay 2 | GPIO 17 | 5 V relay logic | Water circulation/refill pump. |
+| Relay 3 | GPIO 19 | 5 V relay logic | Exhaust fan. |
+| Relay 4 | GPIO 23 | 5 V relay logic | LED grow lights. |
 
-The firmware assumes the relay board is **active LOW**. If your module turns on with a HIGH signal, swap `RELAY_ON` and `RELAY_OFF` in `firmware/main.ino`.
+See [`hardware/pinout_mapping.md`](hardware/pinout_mapping.md) for the full voltage, power, grounding, and relay-load notes.
 
-## 1. Flash the ESP32 firmware
+## Hardware safety precautions
 
-1. Install the Arduino IDE and add the ESP32 board package through **Boards Manager**.
-2. Install these libraries through **Library Manager**: `Adafruit BME680`, `Adafruit SSD1306`, `Adafruit GFX Library`, and `ArduinoJson`.
-3. Open `firmware/main.ino`.
-4. Replace `WIFI_SSID`, `WIFI_PASSWORD`, and `API_URL` with your network and hosted API URL.
-5. Select your ESP32 board and serial port, then upload.
-6. Open Serial Monitor at `115200` baud and confirm the Wi-Fi address and API response code.
+Use a **5 V regulated adapter** for the ESP32 and logic modules, and a separately fused **12 V supply** sized for all pumps and the fan. Use an optocoupled relay board with transistor drivers and contacts rated above the load's startup current. Do not power pumps from the ESP32 regulator.
 
-### Calibration checklist
+The HC-SR04 ECHO line is typically 5 V and must be reduced before GPIO 18. A simple 1 kΩ series / 2 kΩ ground divider is documented in the pinout guide. Keep analog sensor lines away from pump and relay wires, add local decoupling capacitors, and use waterproof enclosures and cable glands around the grow area.
 
-The pH and TDS conversions in this educational sketch are initial approximations. Calibrate before using automatic dosing:
+## Flash the modular firmware
 
-1. Put the pH probe in a known pH 7.00 buffer and update the voltage-to-pH relationship in `readPH()`.
-2. Repeat with pH 4.00 to calculate the slope for your specific probe and amplifier.
-3. Use a known TDS solution to tune the `readTDS()` polynomial and account for temperature compensation.
-4. Measure the empty and full tank distances, then update `tankEmptyDistance` and `tankFullDistance`.
-5. Test each relay with pumps disconnected before connecting plumbing or loads.
+1. Install Arduino IDE and the ESP32 board package.
+2. Install `Adafruit BME680`, `Adafruit SSD1306`, `Adafruit GFX Library`, and `ArduinoJson`.
+3. Open `firmware/main.ino`; Arduino will compile the adjacent `.h` and `.cpp` files as one sketch.
+4. Replace `WIFI_SSID`, `WIFI_PASSWORD`, and `API_URL` in `firmware/config.h` locally. Do not commit real credentials.
+5. Select the ESP32 board and port, upload, and open Serial Monitor at `115200` baud.
+6. Verify sensor readings with relays disconnected before attaching pumps or lights.
 
-The firmware includes hysteresis for the fan and water pump so that relays do not chatter around a threshold. pH dosing is intentionally conservative and should be upgraded to a timed dosing state machine for a production system.
+The relay implementation assumes an active-LOW module. If your module is active-HIGH, swap `RELAY_ON_LEVEL` and `RELAY_OFF_LEVEL` in `config.h`.
 
-## 2. Set up the PHP API and database
+## Calibrate before automation
+
+Follow [`hardware/calibration_guide.md`](hardware/calibration_guide.md) before relying on dosing. The starter pH and TDS formulas are intentionally visible and easy to tune, but they are not universal to every probe/interface board. Measure and update tank distances in `config.h` as well.
+
+## PHP dashboard and database
 
 You need PHP 8+ with PDO MySQL and MySQL 8+ or MariaDB.
 
 ```bash
-# From a MySQL administrator account
 mysql -u root -p < database/schema.sql
 
-# Start a local PHP server from the dashboard directory
-cd dashboard
-php -S 0.0.0.0:8080
-```
-
-The API reads these environment variables. Set them in your host or shell instead of committing credentials:
-
-```bash
 export HYDRO_DB_HOST=127.0.0.1
 export HYDRO_DB_NAME=hydronexus
 export HYDRO_DB_USER=hydronexus_user
 export HYDRO_DB_PASS='replace-with-a-long-password'
+
+cd dashboard
+php -S 0.0.0.0:8080
 ```
 
-Open `http://localhost:8080/index.html`. The dashboard polls `api.php?action=latest` every five seconds. The ESP32 posts a JSON object with `type: "reading"` to the same endpoint.
+Open `http://localhost:8080/index.html`. The dashboard polls `api.php?action=latest` every five seconds. The ESP32 posts JSON readings with `type: "reading"` to the same API. Manual relay updates use `type: "relay"`; add device authentication and a command acknowledgement queue before exposing remote control outside a trusted lab network.
 
-### Test the API manually
+### Test with curl
 
 ```bash
 curl -X POST http://localhost:8080/api.php \\
@@ -101,40 +155,21 @@ curl -X POST http://localhost:8080/api.php \\
 curl 'http://localhost:8080/api.php?action=latest'
 ```
 
-## 3. Run the lettuce growth classifier
-
-The script accepts a single image. It can use a fine-tuned TorchScript/PyTorch model, or it can run immediately with a small OpenCV heuristic so you can verify the pipeline before training a model.
+## Lettuce growth-stage classifier
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install opencv-python numpy torch torchvision
-
-# Starter mode: works without a checkpoint
 python ml/predict.py --image ./samples/lettuce.jpg --json
-
-# Model mode: put a TorchScript checkpoint in models/ or pass a custom path
-python ml/predict.py \\
-  --image ./samples/lettuce.jpg \\
-  --model ./models/lettuce_stage.pt \\
-  --json
 ```
 
-The model should return three scores in this order: `seedling`, `vegetative`, `mature`. For a real classifier, collect images from your own grow room, label them consistently, split into train/validation sets, and export the trained model to a TorchScript-compatible file.
+If `models/lettuce_stage.pt` is present, the script loads the PyTorch/TorchScript checkpoint and expects three scores in the order `seedling`, `vegetative`, `mature`. If no checkpoint is available, it runs a documented OpenCV heuristic so the input/output pipeline can be tested before model training.
 
-## Dashboard behavior
+## Suggested production hardening
 
-The standalone dashboard shows live gauges for temperature, humidity, pH, TDS, and water level. It also exposes four manual switches. Manual state changes are stored in `relay_states` with `mode = manual`; the current Arduino sketch still performs its local safety automation on the board. For a complete remote-control workflow, add an authenticated command queue that the ESP32 polls and acknowledge commands after a relay change.
-
-## Suggested next improvements
-
-- Add API authentication or a device token before exposing the endpoint publicly.
-- Store pH/TDS calibration values in a configuration file or a protected settings table.
-- Add alert notifications when water level or pH leaves the safe band.
-- Add a dosing lockout, maximum daily dose, and a mixing delay after each dose.
-- Train and validate a real lettuce stage classifier using images captured under consistent lighting.
-- Add a real-time chart backed by recent rows from `sensor_readings`.
+Add an API token per device, a server-side manual-command queue with acknowledgements, a maximum daily dose, and a post-dose mixing delay. Add historical charts and alerts to the dashboard. Train and validate the classifier on images from the same camera and lighting conditions used by the grow room.
 
 ## License
 
-Use, adapt, and learn from this starter project. Add a license appropriate for your class, lab, or GitHub repository before publishing.
+Add a license appropriate for your class, lab, or GitHub repository before publishing this project publicly.
