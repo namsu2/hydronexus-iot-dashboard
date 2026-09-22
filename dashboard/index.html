@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HydroNexus Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="mark"><span></span><span></span><span></span></div><div><b>Hydro<span>Nexus</span></b><small>IoT grow lab</small></div></div>
+      <div class="health"><span class="pulse"></span><div><small>System status</small><b id="systemStatus">Waiting for ESP32</b></div></div>
+      <nav><small class="nav-label">Control room</small><a class="active" href="#overview">Live overview</a><a href="#relays">Relay control</a><a href="#about">Setup notes</a></nav>
+      <div class="sidebar-bottom"><small>Device ID</small><code id="deviceId">hydronexus-esp32-01</code><small class="muted">API endpoint: api.php</small></div>
+    </aside>
+    <main>
+      <header class="topbar"><div><small class="eyebrow">Wednesday · live telemetry</small><h1>Good morning, grower <i>✦</i></h1><p>One calm view of your lettuce NFT system.</p></div><div class="top-actions"><span class="live"><span class="pulse"></span><b id="lastUpdated">not connected</b></span><button id="refreshButton" class="button button-dark">Refresh</button></div></header>
+      <section id="overview" class="hero"><div><small class="eyebrow">Automated NFT hydroponics</small><h2>Small signals.<br><em>Better greens.</em></h2><p>Sensor data is stored by <code>api.php</code> and refreshed every 5 seconds. If the API is not reachable, the cards will show the last known state.</p><div class="hero-meta"><span><b id="heroRelays">0/4</b> relays active</span><span><b id="heroWater">--%</b> reservoir level</span><span><b>day 18</b> grow cycle</span></div></div><div class="hero-art"><div class="rack"></div><div class="leaf leaf-one"></div><div class="leaf leaf-two"></div><div class="leaf leaf-three"></div><div class="water"></div></div></section>
+      <div class="section-title"><span>Environmental telemetry</span><hr><small>last 60 minutes</small></div>
+      <section class="metrics" aria-live="polite">
+        <article class="metric"><div class="metric-top"><span class="metric-icon amber">°</span><span>Temperature</span></div><div class="gauge"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="38"></circle><circle class="arc amber-stroke" id="temperatureArc" cx="50" cy="50" r="38"></circle></svg><strong><span id="temperatureValue">--</span><small>°C</small></strong></div><footer><span class="dot green"></span><span id="temperatureStatus">Awaiting data</span></footer></article>
+        <article class="metric"><div class="metric-top"><span class="metric-icon blue">◌</span><span>Humidity</span></div><div class="gauge"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="38"></circle><circle class="arc blue-stroke" id="humidityArc" cx="50" cy="50" r="38"></circle></svg><strong><span id="humidityValue">--</span><small>%</small></strong></div><footer><span class="dot blue"></span><span id="humidityStatus">Awaiting data</span></footer></article>
+        <article class="metric"><div class="metric-top"><span class="metric-icon mint">pH</span><span>Nutrient pH</span></div><div class="gauge"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="38"></circle><circle class="arc mint-stroke" id="phArc" cx="50" cy="50" r="38"></circle></svg><strong><span id="phValue">--</span><small>pH</small></strong></div><footer><span class="dot green"></span><span id="phStatus">Awaiting data</span></footer></article>
+        <article class="metric"><div class="metric-top"><span class="metric-icon purple">↯</span><span>TDS / nutrients</span></div><div class="gauge"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="38"></circle><circle class="arc purple-stroke" id="tdsArc" cx="50" cy="50" r="38"></circle></svg><strong><span id="tdsValue">--</span><small>ppm</small></strong></div><footer><span class="dot purple"></span><span id="tdsStatus">Awaiting data</span></footer></article>
+        <article class="metric"><div class="metric-top"><span class="metric-icon water">≈</span><span>Water level</span></div><div class="gauge"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="38"></circle><circle class="arc water-stroke" id="waterArc" cx="50" cy="50" r="38"></circle></svg><strong><span id="waterValue">--</span><small>%</small></strong></div><footer><span class="dot water"></span><span id="waterStatus">Awaiting data</span></footer></article>
+      </section>
+      <div id="relays" class="section-title"><span>Manual relay control</span><hr><small>auto rules remain on ESP32</small></div>
+      <section class="relay-grid">
+        <article class="relay"><div class="relay-head"><span class="relay-icon mint">+</span><label class="switch"><input type="checkbox" data-relay="ph_up"><span></span></label></div><b>pH dosing</b><small>Relay 1 · GPIO 16</small><footer><span class="relay-state">OFF</span><button data-auto="ph_up">Manual</button></footer></article>
+        <article class="relay"><div class="relay-head"><span class="relay-icon blue">≈</span><label class="switch"><input type="checkbox" data-relay="water_pump"><span></span></label></div><b>Water pump</b><small>Relay 2 · GPIO 17</small><footer><span class="relay-state">OFF</span><button data-auto="water_pump">Auto</button></footer></article>
+        <article class="relay"><div class="relay-head"><span class="relay-icon amber">◒</span><label class="switch"><input type="checkbox" data-relay="fan"><span></span></label></div><b>Climate fan</b><small>Relay 3 · GPIO 19</small><footer><span class="relay-state">OFF</span><button data-auto="fan">Auto</button></footer></article>
+        <article class="relay"><div class="relay-head"><span class="relay-icon purple">☼</span><label class="switch"><input type="checkbox" data-relay="lights"><span></span></label></div><b>Grow lights</b><small>Relay 4 · GPIO 23</small><footer><span class="relay-state">OFF</span><button data-auto="lights">Manual</button></footer></article>
+      </section>
+      <section id="about" class="note"><span>i</span><div><b>Beginner note</b><p>Sensor conversions are starter approximations. Calibrate the pH and TDS formulas in <code>firmware/main.ino</code> with known buffer and nutrient solutions before relying on automated dosing.</p></div></section>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+  <script>
+    const API_URL = 'api.php';
+    const circumference = 2 * Math.PI * 38;
+    const $ = (id) => document.getElementById(id);
+    const setArc = (id, value, min, max) => { const ratio = Math.max(0, Math.min(1, (value - min) / (max - min))); const arc = $(id); arc.style.strokeDasharray = `${circumference * ratio} ${circumference}`; };
+    const showToast = (message) => { const toast = $('toast'); toast.textContent = message; toast.classList.add('show'); window.clearTimeout(window.toastTimer); window.toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2600); };
+    const setReading = (data) => {
+      const values = { temperature: Number(data.temperature), humidity: Number(data.humidity), ph: Number(data.ph), tds: Number(data.tds), water: Number(data.water_level) };
+      $('temperatureValue').textContent = values.temperature.toFixed(1); $('humidityValue').textContent = values.humidity.toFixed(0); $('phValue').textContent = values.ph.toFixed(2); $('tdsValue').textContent = values.tds.toFixed(0); $('waterValue').textContent = values.water.toFixed(0);
+      setArc('temperatureArc', values.temperature, 18, 32); setArc('humidityArc', values.humidity, 40, 80); setArc('phArc', values.ph, 5, 7); setArc('tdsArc', values.tds, 400, 1200); setArc('waterArc', values.water, 0, 100);
+      $('temperatureStatus').textContent = values.temperature > 35 ? 'Fan threshold reached' : 'Ideal for lettuce'; $('humidityStatus').textContent = 'In target range'; $('phStatus').textContent = values.ph >= 5.5 && values.ph <= 6.5 ? 'Perfect balance' : 'Needs attention'; $('tdsStatus').textContent = values.tds >= 600 && values.tds <= 1000 ? 'Healthy concentration' : 'Check nutrient mix'; $('waterStatus').textContent = values.water < 35 ? 'Low water alert' : 'Reservoir healthy'; $('heroWater').textContent = `${values.water.toFixed(0)}%`;
+    };
+    const renderRelays = (relays = {}) => { let active = 0; document.querySelectorAll('[data-relay]').forEach((input) => { const on = Boolean(relays[input.dataset.relay]); input.checked = on; input.closest('.relay').querySelector('.relay-state').textContent = on ? 'ON' : 'OFF'; if (on) active++; }); $('heroRelays').textContent = `${active}/4`; };
+    async function refresh() { try { const response = await fetch(`${API_URL}?action=latest`, { cache: 'no-store' }); if (!response.ok) throw new Error('API unavailable'); const payload = await response.json(); if (payload.reading) setReading(payload.reading); renderRelays(payload.relays); $('systemStatus').textContent = 'All systems nominal'; $('lastUpdated').textContent = `updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`; } catch (error) { $('systemStatus').textContent = 'Demo / offline mode'; $('lastUpdated').textContent = 'API unavailable'; } }
+    document.querySelectorAll('[data-relay]').forEach((input) => input.addEventListener('change', async (event) => { const relay = event.target.dataset.relay; try { const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'relay', relay, state: event.target.checked }) }); if (!response.ok) throw new Error('Relay update failed'); showToast(`${relay.replace('_', ' ')} updated`); } catch (error) { showToast('Could not reach relay API'); event.target.checked = !event.target.checked; } }));
+    $('refreshButton').addEventListener('click', refresh); refresh(); window.setInterval(refresh, 5000);
+  </script>
+</body>
+</html>
