@@ -166,6 +166,32 @@ python ml/predict.py --image ./samples/lettuce.jpg --json
 
 If `models/lettuce_stage.pt` is present, the script loads the PyTorch/TorchScript checkpoint and expects three scores in the order `seedling`, `vegetative`, `mature`. If no checkpoint is available, it runs a documented OpenCV heuristic so the input/output pipeline can be tested before model training.
 
+## Project evidence gallery
+
+The following visuals are selected from the authors' FYP thesis report, **Automated Monitoring and Regulating IoT NFT Hydroponic System** (University of Engineering and Technology, Taxila, 2024). They document the design, electronics prototype, dashboard, ML output, and final physical system.
+
+### NFT structure and electronics
+
+| 3D NFT design | Integrated electronics prototype |
+|---|---|
+| ![3D model of the multi-tier NFT hydroponic structure](docs/figures/nft-3d-design.png) | ![Integrated ESP32, relay, sensor, and analog prototype](docs/figures/integrated-electronics.png) |
+
+### Sensor and dashboard evidence
+
+| BME680 sensor test | TDS and OLED test |
+|---|---|
+| ![BME680 and ESP32 sensor test](docs/figures/bme680-sensor-test.png) | ![TDS sensor and OLED test](docs/figures/tds-oled-test.png) |
+
+![Real-time telemetry dashboard from the thesis prototype](docs/figures/realtime-dashboard.png)
+
+### ML result and final system
+
+| Lettuce growth-stage prediction | Physical multi-tier NFT setup |
+|---|---|
+| ![Lettuce growth-stage prediction result](docs/figures/lettuce-ml-result.png) | ![Physical multi-tier lettuce NFT system](docs/figures/final-nft-setup.png) |
+
+More detail and asset provenance are available in [`docs/figures/README.md`](docs/figures/README.md).
+
 ## Suggested production hardening
 
 Add an API token per device, a server-side manual-command queue with acknowledgements, a maximum daily dose, and a post-dose mixing delay. Add historical charts and alerts to the dashboard. Train and validate the classifier on images from the same camera and lighting conditions used by the grow room.
